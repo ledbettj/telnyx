@@ -100,6 +100,8 @@ pub enum Resource {
   NumberOrder(NumberOrder),
   #[serde(alias = "message")]
   Message(Message),
+  #[serde(alias = "available_phone_number")]
+  AvailablePhoneNumber(AvailablePhoneNumber),
 }
 
 #[derive(Deserialize, Debug, Clone)]
@@ -163,5 +165,44 @@ pub struct Message {
   pub webhook_url: String,
 }
 
+#[derive(Deserialize, Debug, Clone)]
+pub struct AvailablePhoneNumberCost {
+  pub currency: String,
+  pub monthly_cost: String,
+  pub upfront_cost: String,
+}
+
+#[derive(Deserialize, Debug, Clone)]
+pub struct AvailablePhoneNumberRegion {
+  pub region_name: String,
+  pub region_type: String,
+}
+
+#[derive(Deserialize, Debug, Clone)]
+pub struct AvailablePhoneNumberRegulatoryRequirements {
+  pub description: String,
+  pub field_type: String,
+  pub label: String,
+}
+
+#[derive(Deserialize, Debug, Clone)]
+pub struct AvailablePhoneNumber {
+  pub best_effort: bool,
+  pub cost_information: AvailablePhoneNumberCost,
+  pub phone_number: String,
+  pub quickship: bool,
+  #[serde(default = "Vec::new")]
+  pub region_information: Vec<AvailablePhoneNumberRegion>,
+  #[serde(default = "Vec::new")]
+  pub regulatory_requirements: Vec<AvailablePhoneNumberRegulatoryRequirements>,
+  pub reservable: bool,
+  pub vanity_format: String,
+}
+
 telnyx_resource!(NumberOrder, Resource::NumberOrder, "number_orders");
 telnyx_resource!(Message, Resource::Message, "messages");
+telnyx_resource!(
+  AvailablePhoneNumber,
+  Resource::AvailablePhoneNumber,
+  "available_phone_numbers"
+);
