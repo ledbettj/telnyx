@@ -2,7 +2,8 @@
 pub enum Error {
   HttpError(hyper::http::Error),
   InternalError(hyper::Error),
-  ParseError(serde_json::Error)
+  ParseError(serde_json::Error),
+  ResourceMismatchError,
 }
 
 impl std::fmt::Display for Error {

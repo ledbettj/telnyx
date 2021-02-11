@@ -18,6 +18,9 @@ pub(crate) fn client() -> HyperClient {
 #[cfg(test)]
 mod tests {
   use crate::*;
+  fn init() {
+    let _ = env_logger::builder().is_test(true).try_init();
+  }
 
   fn credentials() -> Credentials {
     Credentials::custom("KEY0123456", "http://localhost:12111/v2")
@@ -25,6 +28,7 @@ mod tests {
 
   #[tokio::test]
   async fn test_list_number_orders() {
+    init();
     let c = credentials();
     let r = resources::NumberOrder::list(&c).await.unwrap();
 
@@ -32,7 +36,8 @@ mod tests {
   }
 
   #[tokio::test]
-  async fn test_list_messages() {
+  async fn test_get_message() {
+    init();
     let c = credentials();
     let r = resources::Message::get(&c, "abcd").await.unwrap();
 

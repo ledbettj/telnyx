@@ -1,3 +1,4 @@
+use log;
 use serde::Deserialize;
 
 trait ApiResource {
@@ -11,10 +12,12 @@ macro_rules! telnyx_resource {
       fn index_endpoint(prefix: &str) -> String {
         format!("{}/{}", prefix, $url_fragment).into()
       }
+
       fn item_endpoint(prefix: &str, id: &str) -> String {
         format!("{}/{}/{}", prefix, $url_fragment, id).into()
       }
     }
+
     impl $type {
       pub async fn list(creds: &crate::Credentials) -> Result<Vec<Self>, crate::Error> {
         let req = hyper::Request::builder()
@@ -22,71 +25,87 @@ macro_rules! telnyx_resource {
           .header("Authorization", format!("Bearer {}", creds.api_key))
           .body(hyper::Body::empty())?;
 
+        log::debug!("{:?}", req);
         let result = crate::client().request(req).await?;
-
+        log::debug!("{:?}", result);
         let body = hyper::body::to_bytes(result.into_body()).await?;
-        let wrapper : ListResponseWrapper = serde_json::from_slice(&body)?;
+        log::debug!("Body = {:?}", body);
+        let wrapper: ListResponseWrapper = serde_json::from_slice(&body)?;
 
-        let items = wrapper
+        let items: Result<Vec<Self>, crate::Error> = wrapper
           .data
           .iter()
-          .filter_map(|resource| {
+          .map(|resource| {
             if let $resource_type(t) = resource {
-              Some(t)
+              Ok(t.clone())
             } else {
-              None
+              log::error!(
+                "Expected a resource of type {}, got {:?}",
+                stringify!($resource_type),
+                resource
+              );
+              Err(crate::Error::ResourceMismatchError)
             }
           })
-          .cloned()
           .collect();
 
-        Ok(items)
+        items
       }
 
-      pub async fn get<S: AsRef<str>>(creds: &crate::Credentials, id: S) -> Result<Self, crate::Error> {
+      pub async fn get<S: AsRef<str>>(
+        creds: &crate::Credentials,
+        id: S,
+      ) -> Result<Self, crate::Error> {
         let req = hyper::Request::builder()
           .uri(Self::item_endpoint(&creds.api_base, id.as_ref()))
           .header("Authorization", format!("Bearer {}", creds.api_key))
           .body(hyper::Body::empty())?;
 
+        log::debug!("{:?}", req);
         let result = crate::client().request(req).await?;
-
+        log::debug!("{:?}", result);
         let body = hyper::body::to_bytes(result.into_body()).await?;
-        let wrapper : ItemResponseWrapper = serde_json::from_slice(&body)?;
+        log::debug!("Body = {:?}", body);
+        let wrapper: ItemResponseWrapper = serde_json::from_slice(&body)?;
 
         if let $resource_type(t) = wrapper.data {
           Ok(t)
         } else {
-          panic!("shit")
+          log::error!(
+            "Expected a resource of type {}, got {:?}",
+            stringify!($resource_type),
+            wrapper.data
+          );
+          Err(crate::Error::ResourceMismatchError)
         }
       }
     }
-  }
+  };
 }
 
 #[derive(Deserialize)]
 pub struct ListResponseWrapper {
-  pub data: Vec<Resource>
+  pub data: Vec<Resource>,
 }
 
 #[derive(Deserialize)]
 pub struct ItemResponseWrapper {
-  pub data: Resource
+  pub data: Resource,
 }
 
 #[derive(Deserialize, Debug, Clone)]
 #[serde(tag = "record_type")]
 pub enum Resource {
-  #[serde(alias="number_order")]
+  #[serde(alias = "number_order")]
   NumberOrder(NumberOrder),
-  #[serde(alias="message")]
+  #[serde(alias = "message")]
   Message(Message),
 }
 
 #[derive(Deserialize, Debug, Clone)]
 pub struct NumberOrder {
-  pub connection_id: Option<String>,
   pub billing_group_id: Option<String>,
+  pub connection_id: Option<String>,
   pub created_at: String,
   pub customer_reference: Option<String>,
   pub id: String,
@@ -98,20 +117,50 @@ pub struct NumberOrder {
 }
 
 #[derive(Deserialize, Debug, Clone)]
-pub struct Message {
-  pub id: String,
-  pub direction: String,
-  pub r#type: String,
-  pub text: String,
-  pub webhook_url: String,
-  pub webhook_failover_url: String,
-  pub use_profile_webhooks: Option<bool>,
-  pub parts: usize,
-  pub created_at: String,
-  pub updated_at: String,
-  pub valid_until: Option<String>,
+pub struct MessageAddress {
   pub carrier: String,
   pub line_type: String,
+  pub phone_number: String,
+  pub status: Option<String>,
+}
+
+#[derive(Deserialize, Debug, Clone)]
+pub struct MessageMedia {
+  pub content_type: Option<String>,
+  pub sha256: Option<String>,
+  pub size: Option<usize>,
+  pub url: String,
+}
+
+#[derive(Deserialize, Debug, Clone)]
+pub struct MessageCost {
+  pub amount: String,
+  pub currency: String,
+}
+
+#[derive(Deserialize, Debug, Clone)]
+pub struct Message {
+  pub completed_at: Option<String>,
+  pub cost: Option<MessageCost>,
+  pub direction: String,
+  pub encoding: String,
+  pub from: MessageAddress,
+  pub id: String,
+  #[serde(default = "Vec::new")]
+  pub media: Vec<MessageMedia>,
+  pub messaging_profile_id: String,
+  pub parts: usize,
+  pub received_at: String,
+  pub sent_at: Option<String>,
+  pub subject: Option<String>,
+  #[serde(default = "Vec::new")]
+  pub tags: Vec<String>,
+  pub text: String,
+  pub to: Vec<MessageAddress>,
+  pub r#type: String,
+  pub valid_until: Option<String>,
+  pub webhook_failover_url: String,
+  pub webhook_url: String,
 }
 
 telnyx_resource!(NumberOrder, Resource::NumberOrder, "number_orders");
